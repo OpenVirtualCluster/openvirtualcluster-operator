@@ -1,0 +1,23 @@
+# permissions for end users to view virtualclusters.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: openvc
+    app.kubernetes.io/managed-by: kustomize
+  name: virtualcluster-viewer-role
+rules:
+- apiGroups:
+  - core.openvc.dev
+  resources:
+  - virtualclusters
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - core.openvc.dev
+  resources:
+  - virtualclusters/status
+  verbs:
+  - get
