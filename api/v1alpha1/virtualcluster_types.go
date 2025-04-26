@@ -26,9 +26,24 @@ import (
 
 // VirtualClusterSpec defines the desired state of VirtualCluster.
 type VirtualClusterSpec struct {
+	Chart HelmChart `json:"chart,omitempty"`
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:validation:Schemaless
 	Values Values `json:"values,omitempty"`
+}
+
+type HelmChart struct {
+	// Name is the name of the helm chart
+	// +default:value="vcluster"
+	Name string
+
+	// Repo is the name of the helm chart repository
+	// +default:value="https://charts.loft.sh"
+	Repo string
+
+	// Version is the version of the helm chart
+	// +default:value="v0.24.1"
+	Version string
 }
 
 type Values struct {
