@@ -17,8 +17,10 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"github.com/loft-sh/vcluster/config"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/yaml"
+
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -29,21 +31,26 @@ type VirtualClusterSpec struct {
 	Chart HelmChart `json:"chart,omitempty"`
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:validation:Schemaless
-	Values Values `json:"values,omitempty"`
+	Values *apiextensionsv1.JSON `json:"values,required"`
+}
+
+// GetValues unmarshals the raw values to a map[string]interface{} and returns
+// the result.
+func (in VirtualCluster) GetValues() (map[string]interface{}, error) {
+	var values map[string]interface{}
+	if in.Spec.Values != nil {
+		err := yaml.Unmarshal(in.Spec.Values.Raw, &values)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return values, nil
 }
 
 type HelmChart struct {
 	// Version is the version of the helm chart
 	// +default:value="v0.24.1"
 	Version string `json:"version,omitempty"`
-}
-
-type Values struct {
-	config.Config `json:",inline"`
-}
-
-func (in *Values) DeepCopyInto(out *Values) {
-	*out = *in
 }
 
 // VirtualClusterStatus defines the observed state of VirtualCluster.

@@ -1,6 +1,6 @@
 module github.com/prakashmishra1598/openvc
 
-go 1.23.2
+go 1.24
 
 require (
 	github.com/loft-sh/vcluster-config v0.0.0-20250408172738-9d5a6c680d53

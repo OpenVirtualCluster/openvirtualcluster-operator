@@ -25,6 +25,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sigs.k8s.io/yaml"
 	"strings"
 
 	"github.com/xeipuuv/gojsonschema"
@@ -38,7 +39,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/yaml"
 
 	corev1alpha1 "github.com/prakashmishra1598/openvc/api/v1alpha1"
 )
@@ -301,8 +301,15 @@ func (r *VirtualClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 func (r *VirtualClusterReconciler) createValuesFile(ctx context.Context, vcluster *corev1alpha1.VirtualCluster) (string, error) {
 	logger := log.FromContext(ctx)
 
-	// Convert the values to YAML
-	valuesYAML, err := yaml.Marshal(vcluster.Spec.Values)
+	// Use the raw values directly
+	values, err := vcluster.GetValues()
+	if err != nil {
+		logger.Error(err, "Failed to get values from VirtualCluster")
+		return "", err
+	}
+
+	// convert valuesYaml to []byte
+	valuesByteArray, err := yaml.Marshal(values)
 	if err != nil {
 		logger.Error(err, "Failed to marshal values to YAML")
 		return "", err
@@ -311,7 +318,7 @@ func (r *VirtualClusterReconciler) createValuesFile(ctx context.Context, vcluste
 	// Create the values file
 	valuesFilePath := filepath.Join(os.TempDir(), fmt.Sprintf("values-%s-%s.yaml", vcluster.Name, vcluster.Namespace))
 	logger.Info("Writing values file", "path", valuesFilePath)
-	err = os.WriteFile(valuesFilePath, valuesYAML, 0644)
+	err = os.WriteFile(valuesFilePath, valuesByteArray, 0644)
 	if err != nil {
 		logger.Error(err, "Failed to write values file")
 		return "", err
@@ -534,9 +541,10 @@ func (r *VirtualClusterReconciler) validateValuesAgainstSchema(ctx context.Conte
 	logger.Info("Validating values against schema")
 
 	// Convert the values to JSON for validation
-	valuesJSON, err := json.Marshal(vcluster.Spec.Values)
-	if err != nil {
-		return fmt.Errorf("failed to marshal values to JSON: %w", err)
+	valuesJSON := vcluster.Spec.Values.Raw
+	if valuesJSON == nil {
+		// Empty values are valid
+		return nil
 	}
 
 	// Create schema and document loaders

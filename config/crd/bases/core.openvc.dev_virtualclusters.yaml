@@ -58,6 +58,8 @@ spec:
                 type: object
               values:
                 x-kubernetes-preserve-unknown-fields: true
+            required:
+            - values
             type: object
           status:
             description: VirtualClusterStatus defines the observed state of VirtualCluster.
