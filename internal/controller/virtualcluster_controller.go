@@ -20,11 +20,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
+	"github.com/xeipuuv/gojsonschema"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -54,6 +57,7 @@ const (
 	VirtualClusterConditionAvailable = "Available"
 	VirtualClusterConditionDeploying = "Deploying"
 	VirtualClusterConditionError     = "Error"
+	VirtualClusterConditionValidated = "SchemaValidated"
 )
 
 // VirtualClusterReconciler reconciles a VirtualCluster object
@@ -298,7 +302,7 @@ func (r *VirtualClusterReconciler) createValuesFile(ctx context.Context, vcluste
 	logger := log.FromContext(ctx)
 
 	// Convert the values to YAML
-	valuesYAML, err := yaml.Marshal(vcluster.Spec.Values.Config)
+	valuesYAML, err := yaml.Marshal(vcluster.Spec.Values)
 	if err != nil {
 		logger.Error(err, "Failed to marshal values to YAML")
 		return "", err
@@ -333,6 +337,58 @@ func (r *VirtualClusterReconciler) installOrUpgradeVCluster(ctx context.Context,
 	releaseName := vcluster.Name
 	namespace := vcluster.Namespace
 
+	// Get the chart version from spec if provided, otherwise use default
+	chartVersion := vclusterVersion
+	if vcluster.Spec.Chart.Version != "" {
+		chartVersion = vcluster.Spec.Chart.Version
+		logger.Info("Using chart version from spec", "version", chartVersion)
+	} else {
+		logger.Info("Using default chart version", "version", chartVersion)
+	}
+
+	// Ensure schema ConfigMap exists
+	schemaData, err := r.ensureSchemaConfigMap(ctx, vcluster, chartVersion)
+	if err != nil {
+		logger.Error(err, "Failed to ensure schema ConfigMap exists")
+		return err
+	}
+
+	// Validate values against schema if we have the schema
+	if schemaData != "" {
+		if err := r.validateValuesAgainstSchema(ctx, vcluster, schemaData); err != nil {
+			logger.Error(err, "Schema validation failed")
+			// Don't return error, we continue but update the status
+			meta.SetStatusCondition(&vcluster.Status.Conditions, metav1.Condition{
+				Type:    VirtualClusterConditionValidated,
+				Status:  metav1.ConditionFalse,
+				Reason:  "ValidationFailed",
+				Message: fmt.Sprintf("Values schema validation failed: %v", err),
+			})
+
+			if vcluster.Status.Message == "" || !strings.Contains(vcluster.Status.Message, "Schema validation") {
+				oldMessage := vcluster.Status.Message
+				vcluster.Status.Message = fmt.Sprintf("Schema validation failed, helm install might fail: %v. %s", err, oldMessage)
+			}
+
+			err := r.Status().Update(ctx, vcluster)
+			if err != nil {
+				logger.Error(err, "Failed to update status with validation error")
+			}
+		} else {
+			// Update the status to indicate successful validation
+			meta.SetStatusCondition(&vcluster.Status.Conditions, metav1.Condition{
+				Type:    VirtualClusterConditionValidated,
+				Status:  metav1.ConditionTrue,
+				Reason:  "ValidationSucceeded",
+				Message: "Values successfully validated against schema",
+			})
+			err := r.Status().Update(ctx, vcluster)
+			if err != nil {
+				logger.Error(err, "Failed to update status with validation success")
+			}
+		}
+	}
+
 	// Add the vCluster repo if not exists
 	addRepoCmd := exec.Command("helm", "repo", "add", "loft", vclusterRepo)
 	if output, err := addRepoCmd.CombinedOutput(); err != nil {
@@ -354,7 +410,7 @@ func (r *VirtualClusterReconciler) installOrUpgradeVCluster(ctx context.Context,
 			"helm", "upgrade",
 			releaseName,
 			fmt.Sprintf("loft/%s", vclusterChart),
-			"--version", vclusterVersion,
+			"--version", chartVersion,
 			"--namespace", namespace,
 			"--values", valuesFile,
 		)
@@ -365,7 +421,7 @@ func (r *VirtualClusterReconciler) installOrUpgradeVCluster(ctx context.Context,
 			"helm", "install",
 			releaseName,
 			fmt.Sprintf("loft/%s", vclusterChart),
-			"--version", vclusterVersion,
+			"--version", chartVersion,
 			"--namespace", namespace,
 			"--create-namespace",
 			"--values", valuesFile,
@@ -380,6 +436,128 @@ func (r *VirtualClusterReconciler) installOrUpgradeVCluster(ctx context.Context,
 	}
 
 	logger.Info("Successfully executed Helm command", "output", string(output))
+	return nil
+}
+
+// ensureSchemaConfigMap ensures that a ConfigMap with the schema for the specified version exists
+// Returns the schema data if available, empty string otherwise
+func (r *VirtualClusterReconciler) ensureSchemaConfigMap(ctx context.Context, vcluster *corev1alpha1.VirtualCluster, version string) (string, error) {
+	logger := log.FromContext(ctx)
+
+	// Define ConfigMap name based on version
+	configMapName := fmt.Sprintf("vcluster-schema-%s", strings.ReplaceAll(version, ".", "-"))
+	configMapNamespace := vcluster.Namespace
+
+	// Check if ConfigMap already exists
+	configMap := &corev1.ConfigMap{}
+	err := r.Get(ctx, client.ObjectKey{Namespace: configMapNamespace, Name: configMapName}, configMap)
+	if err == nil {
+		logger.Info("Schema ConfigMap already exists", "name", configMapName, "namespace", configMapNamespace)
+		return configMap.Data["values.schema.json"], nil
+	}
+
+	if !errors.IsNotFound(err) {
+		return "", err
+	}
+
+	// ConfigMap doesn't exist, fetch schema and create it
+	logger.Info("Fetching schema for vCluster version", "version", version)
+
+	// Construct URL to fetch schema
+	schemaURL := fmt.Sprintf("https://github.com/loft-sh/vcluster/releases/download/%s/values.schema.json", version)
+
+	// Fetch schema
+	resp, err := http.Get(schemaURL)
+	if err != nil {
+		logger.Error(err, "Failed to fetch schema", "url", schemaURL)
+		// Don't return error, we'll continue without the schema
+		logger.Info("Continuing without schema ConfigMap")
+		return "", nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		logger.Error(fmt.Errorf("HTTP status code: %d", resp.StatusCode), "Failed to fetch schema", "url", schemaURL)
+		// Don't return error, we'll continue without the schema
+		logger.Info("Continuing without schema ConfigMap")
+		return "", nil
+	}
+
+	// Read schema content
+	schemaContent, err := io.ReadAll(resp.Body)
+	if err != nil {
+		logger.Error(err, "Failed to read schema content")
+		// Don't return error, we'll continue without the schema
+		logger.Info("Continuing without schema ConfigMap")
+		return "", nil
+	}
+
+	// Create ConfigMap
+	newConfigMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      configMapName,
+			Namespace: configMapNamespace,
+			Labels: map[string]string{
+				"app.kubernetes.io/managed-by": "openvc-controller",
+				"app.kubernetes.io/name":       "vcluster-schema",
+				"app.kubernetes.io/version":    version,
+			},
+		},
+		Data: map[string]string{
+			"values.schema.json": string(schemaContent),
+		},
+	}
+
+	// Set owner reference
+	if err := ctrl.SetControllerReference(vcluster, newConfigMap, r.Scheme); err != nil {
+		logger.Error(err, "Failed to set controller reference on ConfigMap")
+		// Don't return error, we'll continue without the schema
+		logger.Info("Continuing without schema ConfigMap")
+		return "", nil
+	}
+
+	// Create ConfigMap
+	if err := r.Create(ctx, newConfigMap); err != nil {
+		logger.Error(err, "Failed to create schema ConfigMap")
+		// Don't return error, we'll continue without the schema
+		logger.Info("Continuing without schema ConfigMap")
+		return "", nil
+	}
+
+	logger.Info("Created schema ConfigMap", "name", configMapName, "namespace", configMapNamespace)
+	return string(schemaContent), nil
+}
+
+// validateValuesAgainstSchema validates the values against the schema
+func (r *VirtualClusterReconciler) validateValuesAgainstSchema(ctx context.Context, vcluster *corev1alpha1.VirtualCluster, schemaData string) error {
+	logger := log.FromContext(ctx)
+	logger.Info("Validating values against schema")
+
+	// Convert the values to JSON for validation
+	valuesJSON, err := json.Marshal(vcluster.Spec.Values)
+	if err != nil {
+		return fmt.Errorf("failed to marshal values to JSON: %w", err)
+	}
+
+	// Create schema and document loaders
+	schemaLoader := gojsonschema.NewStringLoader(schemaData)
+	documentLoader := gojsonschema.NewBytesLoader(valuesJSON)
+
+	// Validate
+	result, err := gojsonschema.Validate(schemaLoader, documentLoader)
+	if err != nil {
+		return fmt.Errorf("validation failed: %w", err)
+	}
+
+	if !result.Valid() {
+		var errors []string
+		for _, desc := range result.Errors() {
+			errors = append(errors, desc.String())
+		}
+		return fmt.Errorf("schema validation errors: %s", strings.Join(errors, "; "))
+	}
+
+	logger.Info("Values successfully validated against schema")
 	return nil
 }
 

@@ -4,6 +4,8 @@ metadata:
   name: sample-vcluster
   namespace: default
 spec:
+  chart:
+    version: v0.24.1
   values:
     exportKubeConfig:
       server: https://sample-vcluster.cluster.openvc.dev:443

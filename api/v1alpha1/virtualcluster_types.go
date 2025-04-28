@@ -33,17 +33,9 @@ type VirtualClusterSpec struct {
 }
 
 type HelmChart struct {
-	// Name is the name of the helm chart
-	// +default:value="vcluster"
-	Name string
-
-	// Repo is the name of the helm chart repository
-	// +default:value="https://charts.loft.sh"
-	Repo string
-
 	// Version is the version of the helm chart
 	// +default:value="v0.24.1"
-	Version string
+	Version string `json:"version,omitempty"`
 }
 
 type Values struct {
