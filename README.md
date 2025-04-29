@@ -71,6 +71,13 @@ You can access your VirtualCluster using the vcluster CLI:
 vcluster connect sample-vcluster -n default
 ```
 
+Or you can get the kubeconfig locally:
+
+```bash
+kubectl get secret sample-vcluster-kubeconfig -n default -o jsonpath="{.data.config}" | base64 --decode > kc.yaml
+kubectl --kubeconfig=vc-kc.yaml get pods -A
+```
+
 ## Configuration
 
 The `spec.values` field in the VirtualCluster CR directly maps to the values.yaml of the vcluster Helm chart. For all available configuration options, refer to the [vcluster documentation](https://www.vcluster.com/docs/architecture/configuration).
