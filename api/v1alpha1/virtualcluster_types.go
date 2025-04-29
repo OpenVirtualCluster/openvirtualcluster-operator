@@ -17,8 +17,9 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"encoding/json"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/yaml"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 )
@@ -39,10 +40,14 @@ type VirtualClusterSpec struct {
 func (in VirtualCluster) GetValues() (map[string]interface{}, error) {
 	var values map[string]interface{}
 	if in.Spec.Values != nil {
-		err := yaml.Unmarshal(in.Spec.Values.Raw, &values)
+		err := json.Unmarshal(in.Spec.Values.Raw, &values)
 		if err != nil {
 			return nil, err
 		}
+	}
+	// Initialize an empty map if values is nil
+	if values == nil {
+		values = make(map[string]interface{})
 	}
 	return values, nil
 }

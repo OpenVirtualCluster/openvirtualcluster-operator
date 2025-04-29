@@ -25,8 +25,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sigs.k8s.io/yaml"
 	"strings"
+
+	"sigs.k8s.io/yaml"
 
 	"github.com/xeipuuv/gojsonschema"
 	corev1 "k8s.io/api/core/v1"
