@@ -30,7 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	corev1alpha1 "github.com/prakashmishra1598/openvc/api/v1alpha1"
+	corev1alpha1 "github.com/OpenVirtualCluster/openvirtualcluster-operator/api/v1alpha1"
 )
 
 var _ = Describe("Controller Setup Tests", func() {

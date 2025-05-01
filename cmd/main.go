@@ -35,8 +35,8 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	corev1alpha1 "github.com/prakashmishra1598/openvc/api/v1alpha1"
-	"github.com/prakashmishra1598/openvc/internal/controller"
+	corev1alpha1 "github.com/OpenVirtualCluster/openvirtualcluster-operator/api/v1alpha1"
+	"github.com/OpenVirtualCluster/openvirtualcluster-operator/internal/controller"
 	// +kubebuilder:scaffold:imports
 )
 

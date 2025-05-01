@@ -25,13 +25,13 @@ The OpenVC operator provides a declarative way to manage VirtualClusters within 
 1. Install CRDs:
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/prakashmishra1598/openvc/main/config/crd/bases/core.openvc.dev_virtualclusters.yaml
+kubectl apply -f https://raw.githubusercontent.com/OpenVirtualCluster/openvirtualcluster-operator/main/config/crd/bases/core.openvc.dev_virtualclusters.yaml
 ```
 
 2. Deploy the operator:
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/prakashmishra1598/openvc/main/config/default
+kubectl apply -f https://raw.githubusercontent.com/OpenVirtualCluster/openvirtualcluster-operator/main/config/default
 ```
 
 ### Creating a VirtualCluster

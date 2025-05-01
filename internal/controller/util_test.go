@@ -20,9 +20,9 @@ import (
 	"context"
 	"os"
 
+	corev1alpha1 "github.com/OpenVirtualCluster/openvirtualcluster-operator/api/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	corev1alpha1 "github.com/prakashmishra1598/openvc/api/v1alpha1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"

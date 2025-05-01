@@ -25,7 +25,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/prakashmishra1598/openvc/test/utils"
+	"github.com/OpenVirtualCluster/openvirtualcluster-operator/test/utils"
 )
 
 var (

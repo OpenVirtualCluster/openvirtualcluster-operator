@@ -6,7 +6,7 @@ domain: openvc.dev
 layout:
 - go.kubebuilder.io/v4
 projectName: openvc
-repo: github.com/prakashmishra1598/openvc
+repo: github.com/OpenVirtualCluster/openvirtualcluster-operator
 resources:
 - api:
     crdVersion: v1
@@ -15,6 +15,6 @@ resources:
   domain: openvc.dev
   group: core
   kind: VirtualCluster
-  path: github.com/prakashmishra1598/openvc/api/v1alpha1
+  path: github.com/OpenVirtualCluster/openvirtualcluster-operator/api/v1alpha1
   version: v1alpha1
 version: "3"

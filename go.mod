@@ -1,4 +1,4 @@
-module github.com/prakashmishra1598/openvc
+module github.com/OpenVirtualCluster/openvirtualcluster-operator
 
 go 1.24
 
