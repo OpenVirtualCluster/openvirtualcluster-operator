@@ -38,10 +38,7 @@ import (
 
 // MockVirtualClusterReconciler embeds the real reconciler for testing
 type MockVirtualClusterReconciler struct {
-	// Embed the reconciler
-	client.Client
-	Scheme   *runtime.Scheme
-	Recorder record.EventRecorder
+	VirtualClusterReconciler
 
 	// Add fields to track mock behavior
 	createValuesFileCalled            bool
@@ -202,9 +199,11 @@ var _ = Describe("VirtualCluster Reconciler", func() {
 
 			// Create the mock reconciler
 			mockReconciler = &MockVirtualClusterReconciler{
-				Client:   fakeClient,
-				Scheme:   scheme,
-				Recorder: record.NewFakeRecorder(10),
+				VirtualClusterReconciler: VirtualClusterReconciler{
+					Client:   fakeClient,
+					Scheme:   scheme,
+					Recorder: record.NewFakeRecorder(10),
+				},
 				// Set default mock return values
 				createValuesFileResult:           "/tmp/mock-values.yaml",
 				createValuesFileError:            nil,

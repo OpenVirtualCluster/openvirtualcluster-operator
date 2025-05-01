@@ -1,0 +1,32 @@
+apiVersion: core.openvc.dev/v1alpha1
+kind: VirtualCluster
+metadata:
+  name: ingress-sync
+  namespace: default
+spec:
+  values:
+    # Configure which resources to sync from virtual cluster to host cluster
+    sync:
+      # Enable ingress sync
+      ingresses:
+        enabled: true
+        
+      # Enable service sync
+      services:
+        enabled: true
+        
+      # Enable configmap sync
+      configmaps:
+        enabled: false
+        
+      # Enable secret sync
+      secrets:
+        enabled: false
+        
+    # Basic vcluster configuration
+    vcluster:
+      image: rancher/k3s:v1.27.3-k3s1
+      
+    # Service configuration
+    service:
+      type: ClusterIP 

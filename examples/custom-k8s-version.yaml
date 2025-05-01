@@ -1,0 +1,23 @@
+apiVersion: core.openvc.dev/v1alpha1
+kind: VirtualCluster
+metadata:
+  name: custom-k8s-version
+  namespace: default
+spec:
+  # You can also specify a custom chart version
+  chart:
+    version: "v0.24.1"
+  values:
+    # Specify a particular K8s version for your virtual cluster
+    vcluster:
+      # Using K8s 1.28 instead of the default version
+      image: rancher/k3s:v1.28.2-k3s1
+      
+      # Additional K3s/K8s args if needed
+      extraArgs:
+        - --disable=traefik
+        - --disable=servicelb
+
+    # Disable telemetry
+    telemetry:
+      disabled: true 

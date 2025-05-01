@@ -1,0 +1,59 @@
+name: Test Examples
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  # Allow manual triggering
+  workflow_dispatch:
+
+jobs:
+  examples-test:
+    name: Test example VirtualClusters
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Setup Kind
+        uses: helm/kind-action@v1.8.0
+        with:
+          wait: 300s
+          cluster_name: kind
+
+      - name: Install CRDs
+        run: |
+          make install
+
+      - name: Build and load controller image
+        run: |
+          make docker-build docker-push IMG=openvirtualcluster-operator:test
+          kind load docker-image openvirtualcluster-operator:test --name kind
+
+      - name: Deploy controller
+        run: |
+          make deploy IMG=openvirtualcluster-operator:test
+
+      - name: Wait for controller to be ready
+        run: |
+          kubectl wait --for=condition=available --timeout=300s deployment/openvirtualcluster-controller-manager -n openvirtualcluster-system
+
+      - name: Run example tests
+        run: |
+          go test -v ./test/e2e/examples_test.go -ginkgo.v
+
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          kubectl logs -n openvirtualcluster-system -l control-plane=controller-manager --tail=100
+          kubectl get pods -A
+          kubectl get virtualclusters -A 

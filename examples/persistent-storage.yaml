@@ -1,0 +1,26 @@
+apiVersion: core.openvc.dev/v1alpha1
+kind: VirtualCluster
+metadata:
+  name: persistent-vcluster
+  namespace: default
+spec:
+  values:
+    # Configure persistent storage for the virtual cluster
+    storage:
+      # Enable persistent storage
+      persistence: true
+      
+      # Configure the storage class to use
+      # Leave empty to use the default storage class
+      storageClass: ""
+      
+      # Configure the size of the persistent volume
+      size: 5Gi
+      
+      # Configure the access mode for the persistent volume
+      accessModes:
+        - ReadWriteOnce
+    
+    # Basic vcluster configuration
+    vcluster:
+      image: rancher/k3s:v1.27.3-k3s1 
