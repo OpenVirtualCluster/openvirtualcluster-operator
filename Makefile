@@ -132,6 +132,24 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/default > dist/install.yaml
 
+.PHONY: build-chart
+build-chart: manifests generate kustomize ## Generate Helm chart templates from Kustomize configs.
+	@echo "Generating Helm chart templates from Kustomize configurations..."
+	@mkdir -p charts/openvirtualcluster-operator/templates
+	@mkdir -p charts/openvirtualcluster-operator/crds
+	
+	@echo "Copying CRDs to chart directory..."
+	@cp config/crd/bases/* charts/openvirtualcluster-operator/crds/
+	
+	@echo "Generating RBAC templates..."
+	@$(KUSTOMIZE) build config/rbac > charts/openvirtualcluster-operator/templates/rbac-kustomize.yaml
+	
+	@echo "Generating manager templates..."
+	@$(KUSTOMIZE) build config/manager > charts/openvirtualcluster-operator/templates/manager-kustomize.yaml
+
+	@echo "Converting Kustomize output to Helm templates..."
+	@$(SHELL) ./hack/kustomize-to-helm.sh
+
 ##@ Deployment
 
 ifndef ignore-not-found

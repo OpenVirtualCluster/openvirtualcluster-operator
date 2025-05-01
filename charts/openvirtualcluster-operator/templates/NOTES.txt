@@ -1,0 +1,17 @@
+Thank you for installing {{ .Chart.Name }}.
+
+Your release is named {{ .Release.Name }}.
+
+The OpenVirtualCluster Operator has been deployed to your cluster.
+
+To verify that the operator is running, execute:
+  kubectl get pods -n {{ .Release.Namespace }} -l "app.kubernetes.io/name={{ include "openvirtualcluster-operator.name" . }}"
+
+To create a VirtualCluster, apply a VirtualCluster custom resource:
+  kubectl apply -f https://raw.githubusercontent.com/OpenVirtualCluster/openvirtualcluster-operator/main/examples/basic-virtualcluster.yaml
+
+For more examples, visit:
+  https://github.com/OpenVirtualCluster/openvirtualcluster-operator/tree/main/examples
+
+For more information on using the operator, please refer to the documentation:
+  https://github.com/OpenVirtualCluster/openvirtualcluster-operator 

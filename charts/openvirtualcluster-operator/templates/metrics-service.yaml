@@ -1,0 +1,20 @@
+{{- if .Values.metrics.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "openvirtualcluster-operator.fullname" . }}-metrics-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    control-plane: controller-manager
+    {{- include "openvirtualcluster-operator.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+  - name: https
+    port: 8443
+    targetPort: https
+    protocol: TCP
+  selector:
+    control-plane: controller-manager
+    {{- include "openvirtualcluster-operator.selectorLabels" . | nindent 4 }}
+{{- end }} 

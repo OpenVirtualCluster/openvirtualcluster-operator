@@ -1,0 +1,19 @@
+apiVersion: v2
+name: openvirtualcluster-operator
+description: A Helm chart for OpenVirtualCluster Operator
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - kubernetes
+  - virtual cluster
+  - k8s
+  - vcluster
+  - operator
+maintainers:
+  - name: OpenVirtualCluster Team
+    url: https://github.com/OpenVirtualCluster/openvirtualcluster-operator
+home: https://github.com/OpenVirtualCluster/openvirtualcluster-operator
+sources:
+  - https://github.com/OpenVirtualCluster/openvirtualcluster-operator
+icon: https://raw.githubusercontent.com/cncf/artwork/master/projects/kubernetes/icon/color/kubernetes-icon-color.svg 
