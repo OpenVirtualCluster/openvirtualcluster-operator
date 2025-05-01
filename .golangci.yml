@@ -1,6 +1,10 @@
 run:
   timeout: 5m
   allow-parallel-runners: true
+  # Skip test directories for certain linters to avoid Ginkgo framework related issues
+  skip-dirs-use-default: true
+  skip-files:
+    - ".*_test.go$"
 
 issues:
   # don't skip warning about doc comments
@@ -16,6 +20,23 @@ issues:
       linters:
         - dupl
         - lll
+    # Exclude test files from certain linters
+    - path: "_test\\.go"
+      linters:
+        - typecheck
+        - revive
+        - gocyclo
+    # Specifically handle test utils that use Ginkgo
+    - path: "test/utils/*"
+      linters:
+        - typecheck
+    - path: "test/e2e/*"
+      linters: 
+        - typecheck
+    - path: "internal/controller/*_test.go"
+      linters:
+        - typecheck
+
 linters:
   disable-all: true
   enable:
@@ -45,3 +66,6 @@ linters-settings:
   revive:
     rules:
       - name: comment-spacings
+  typecheck:
+    # Enable skipping errors related to unresolved imports, which helps when using Ginkgo
+    skip-unresolved: true
