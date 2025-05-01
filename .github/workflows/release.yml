@@ -16,7 +16,85 @@ env:
   IMG: ghcr.io/openvirtualcluster/openvirtualcluster-operator:${{ github.event_name == 'workflow_dispatch' && format('v{0}', github.event.inputs.version) || github.ref_name }}
 
 jobs:
+  validate-version:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    outputs:
+      is_valid: ${{ steps.validate.outputs.is_valid }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
+      - name: Validate version
+        id: validate
+        run: |
+          INPUT_VERSION="${{ github.event.inputs.version }}"
+          
+          # Check if version is a valid semver (X.Y.Z format)
+          if ! [[ $INPUT_VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Error: Version must be in format X.Y.Z (e.g. 1.2.3)"
+            echo "is_valid=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          
+          # Get all existing tags
+          git fetch --tags
+          
+          # Check if tag already exists
+          if git tag | grep -q "^v$INPUT_VERSION$"; then
+            echo "Error: Version v$INPUT_VERSION already exists"
+            echo "is_valid=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          
+          # Find latest version
+          LATEST_TAG=$(git tag -l "v*.*.*" | sort -V | tail -n 1)
+          
+          if [ -z "$LATEST_TAG" ]; then
+            echo "No previous versions found. This will be the first release."
+            echo "is_valid=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          LATEST_VERSION=${LATEST_TAG#v}
+          
+          # Split versions into components
+          IFS='.' read -r LATEST_MAJOR LATEST_MINOR LATEST_PATCH <<< "$LATEST_VERSION"
+          IFS='.' read -r INPUT_MAJOR INPUT_MINOR INPUT_PATCH <<< "$INPUT_VERSION"
+          
+          # Convert to integers for comparison
+          LATEST_MAJOR=$((10#$LATEST_MAJOR))
+          LATEST_MINOR=$((10#$LATEST_MINOR))
+          LATEST_PATCH=$((10#$LATEST_PATCH))
+          INPUT_MAJOR=$((10#$INPUT_MAJOR))
+          INPUT_MINOR=$((10#$INPUT_MINOR))
+          INPUT_PATCH=$((10#$INPUT_PATCH))
+          
+          # Validate version is newer
+          if [ $INPUT_MAJOR -gt $LATEST_MAJOR ]; then
+            # Major version bump is valid
+            echo "Valid major version bump: $LATEST_VERSION -> $INPUT_VERSION"
+            echo "is_valid=true" >> $GITHUB_OUTPUT
+          elif [ $INPUT_MAJOR -eq $LATEST_MAJOR ] && [ $INPUT_MINOR -gt $LATEST_MINOR ]; then
+            # Minor version bump is valid
+            echo "Valid minor version bump: $LATEST_VERSION -> $INPUT_VERSION"
+            echo "is_valid=true" >> $GITHUB_OUTPUT
+          elif [ $INPUT_MAJOR -eq $LATEST_MAJOR ] && [ $INPUT_MINOR -eq $LATEST_MINOR ] && [ $INPUT_PATCH -gt $LATEST_PATCH ]; then
+            # Patch version bump is valid
+            echo "Valid patch version bump: $LATEST_VERSION -> $INPUT_VERSION" 
+            echo "is_valid=true" >> $GITHUB_OUTPUT
+          else
+            echo "Error: Version $INPUT_VERSION is not newer than the latest version $LATEST_VERSION"
+            echo "New version must increment major, minor, or patch number"
+            echo "is_valid=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
   build-and-push:
+    needs: [validate-version]
+    if: github.event_name != 'workflow_dispatch' || needs.validate-version.outputs.is_valid == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -64,7 +142,7 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
 
   release:
-    needs: build-and-push
+    needs: [build-and-push]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -123,7 +201,7 @@ jobs:
           generate_release_notes: true
 
   build-installer:
-    needs: build-and-push
+    needs: [build-and-push]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
