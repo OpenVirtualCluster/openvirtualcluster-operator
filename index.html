@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenVirtualCluster Helm Charts</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #2C3E50;
+            border-bottom: 2px solid #eaecef;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #3498DB;
+            margin-top: 30px;
+        }
+        a {
+            color: #3498DB;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .chart-container {
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        code {
+            background-color: #f8f9fa;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+        }
+        pre {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .footer {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px solid #eaecef;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <h1>OpenVirtualCluster Helm Charts</h1>
+    
+    <p>Welcome to the OpenVirtualCluster Helm Chart repository. This repository hosts Helm charts for deploying OpenVirtualCluster components in Kubernetes clusters.</p>
+    
+    <h2>Available Charts</h2>
+    
+    <div class="chart-container">
+        <h3>openvirtualcluster-operator</h3>
+        <p>The OpenVirtualCluster Operator manages virtual Kubernetes clusters within a host Kubernetes cluster.</p>
+        <p>This chart deploys the operator that watches VirtualCluster custom resources and manages their lifecycle.</p>
+        <p><strong>Installation:</strong></p>
+        <pre><code>helm repo add openvirtualcluster https://openvirtualcluster.github.io/openvirtualcluster-operator/
+helm repo update
+helm install openvirtualcluster openvirtualcluster/openvirtualcluster-operator</code></pre>
+        <p><a href="https://github.com/OpenVirtualCluster/openvirtualcluster-operator/tree/main/charts/openvirtualcluster-operator">View Chart Source</a></p>
+    </div>
+    
+    <h2>Usage</h2>
+    
+    <p>Add the Helm repository to your Helm client:</p>
+    <pre><code>helm repo add openvirtualcluster https://openvirtualcluster.github.io/openvirtualcluster-operator/
+helm repo update</code></pre>
+    
+    <p>List the charts in the repository:</p>
+    <pre><code>helm search repo openvirtualcluster</code></pre>
+    
+    <h2>Documentation</h2>
+    
+    <p>For more information and detailed documentation, please visit the <a href="https://github.com/OpenVirtualCluster/openvirtualcluster-operator">OpenVirtualCluster GitHub repository</a>.</p>
+    
+    <div class="footer">
+        <p>OpenVirtualCluster is an open source project.</p>
+        <p>This Helm chart repository is updated automatically by GitHub Actions upon new releases.</p>
+    </div>
+    
+    <script>
+        // Simple script to fetch the latest chart version from index.yaml and update the page
+        fetch('./index.yaml')
+            .then(response => response.text())
+            .then(text => {
+                const match = text.match(/openvirtualcluster-operator-([\d\.]+)\.tgz/);
+                if (match && match[1]) {
+                    const version = match[1];
+                    document.querySelectorAll('.chart-container h3').forEach(el => {
+                        if (el.textContent === 'openvirtualcluster-operator') {
+                            el.textContent = `openvirtualcluster-operator (v${version})`;
+                        }
+                    });
+                }
+            })
+            .catch(error => console.error('Error fetching index.yaml:', error));
+    </script>
+</body>
+</html> 
