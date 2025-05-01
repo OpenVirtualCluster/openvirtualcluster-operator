@@ -4,9 +4,16 @@ on:
   push:
     tags:
       - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (without v prefix, e.g. 1.2.3)'
+        required: true
+        type: string
+
 env:
-  RELEASE_VERSION: ${{ github.ref_name }}
-  IMG: ghcr.io/openvirtualcluster/openvirtualcluster-operator:${{ github.ref_name }}
+  RELEASE_VERSION: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', github.event.inputs.version) || github.ref_name }}
+  IMG: ghcr.io/openvirtualcluster/openvirtualcluster-operator:${{ github.event_name == 'workflow_dispatch' && format('v{0}', github.event.inputs.version) || github.ref_name }}
 
 jobs:
   build-and-push:
@@ -17,6 +24,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
@@ -30,13 +42,26 @@ jobs:
 
       - name: Extract version
         id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
-      - name: Build and push
         run: |
-          make docker-buildx
-        env:
-          IMG: ${{ env.IMG }}
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build and push multi-platform image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ env.IMG }}
+          labels: |
+            org.opencontainers.image.title=openvirtualcluster-operator
+            org.opencontainers.image.description=OpenVirtualCluster Operator
+            org.opencontainers.image.version=${{ steps.get_version.outputs.VERSION }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
 
   release:
     needs: build-and-push
@@ -46,6 +71,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
       - name: Create directory for changelog config
         run: mkdir -p .github/workflows/changelog_builder
