@@ -1,0 +1,7 @@
+apiVersion: core.openvc.dev/v1alpha1
+kind: VirtualCluster
+metadata:
+  name: minimal-vcluster
+  namespace: default
+spec:
+  values: {} 

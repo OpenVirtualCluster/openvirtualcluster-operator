@@ -18,10 +18,12 @@ package v1alpha1
 
 import (
 	"encoding/json"
+	"fmt"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"sigs.k8s.io/yaml"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -40,9 +42,12 @@ type VirtualClusterSpec struct {
 func (in VirtualCluster) GetValues() (map[string]interface{}, error) {
 	var values map[string]interface{}
 	if in.Spec.Values != nil {
-		err := json.Unmarshal(in.Spec.Values.Raw, &values)
-		if err != nil {
-			return nil, err
+		// For raw JSON values
+		if err := json.Unmarshal(in.Spec.Values.Raw, &values); err != nil {
+			// If raw JSON unmarshal fails, try YAML unmarshal
+			if yamlErr := yaml.Unmarshal(in.Spec.Values.Raw, &values); yamlErr != nil {
+				return nil, fmt.Errorf("failed to unmarshal values as JSON or YAML: %v, %v", err, yamlErr)
+			}
 		}
 	}
 	// Initialize an empty map if values is nil

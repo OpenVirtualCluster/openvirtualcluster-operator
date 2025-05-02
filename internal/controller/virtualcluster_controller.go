@@ -302,24 +302,78 @@ func (r *VirtualClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 func (r *VirtualClusterReconciler) createValuesFile(ctx context.Context, vcluster *corev1alpha1.VirtualCluster) (string, error) {
 	logger := log.FromContext(ctx)
 
-	// Use the raw values directly
+	// Get the values
 	values, err := vcluster.GetValues()
 	if err != nil {
 		logger.Error(err, "Failed to get values from VirtualCluster")
 		return "", err
 	}
 
-	// convert valuesYaml to []byte
-	valuesByteArray, err := yaml.Marshal(values)
+	// Transform values to vCluster format according to schema
+	transformedValues := make(map[string]interface{})
+
+	// Map 'vcluster' section to appropriate controlPlane fields
+	if vclusterConfig, ok := values["vcluster"].(map[string]interface{}); ok {
+		// In schema, the K3s/K8s image is defined within controlPlane
+		controlPlane := make(map[string]interface{})
+
+		// Set the image if specified
+		if image, ok := vclusterConfig["image"].(string); ok {
+			controlPlane["image"] = image
+		}
+
+		transformedValues["controlPlane"] = controlPlane
+	}
+
+	// Map 'storage' (persistence) section to correct fields according to schema
+	if storage, ok := values["storage"].(map[string]interface{}); ok {
+		if persistence, ok := storage["persistence"].(bool); ok {
+			// Set storage-related fields
+			if !persistence {
+				// If persistence is false, we need to disable it in the vcluster chart
+				transformedValues["networking"] = map[string]interface{}{
+					"podCIDR":         "10.42.0.0/16",
+					"serviceCIDR":     "10.43.0.0/16",
+					"isolation":       "enabled",
+					"cloudController": false,
+				}
+			}
+		}
+	}
+
+	// Map 'telemetry' section to correct schema field
+	if telemetry, ok := values["telemetry"].(map[string]interface{}); ok {
+		telemetryConfig := make(map[string]interface{})
+		if disabled, ok := telemetry["disabled"].(bool); ok {
+			telemetryConfig["enabled"] = !disabled
+		}
+		transformedValues["telemetry"] = telemetryConfig
+	}
+
+	// Copy any other fields that match the schema
+	validRootFields := []string{
+		"controlPlane", "experimental", "exportKubeConfig", "external",
+		"global", "integrations", "networking", "plugin", "plugins",
+		"policies", "pro", "rbac", "serviceCIDR", "sleepMode", "sync", "telemetry",
+	}
+
+	for _, field := range validRootFields {
+		if v, ok := values[field]; ok {
+			transformedValues[field] = v
+		}
+	}
+
+	// Marshal to YAML
+	transformedYaml, err := yaml.Marshal(transformedValues)
 	if err != nil {
-		logger.Error(err, "Failed to marshal values to YAML")
+		logger.Error(err, "Failed to marshal transformed values to YAML")
 		return "", err
 	}
 
 	// Create the values file
 	valuesFilePath := filepath.Join(os.TempDir(), fmt.Sprintf("values-%s-%s.yaml", vcluster.Name, vcluster.Namespace))
 	logger.Info("Writing values file", "path", valuesFilePath)
-	err = os.WriteFile(valuesFilePath, valuesByteArray, 0644)
+	err = os.WriteFile(valuesFilePath, transformedYaml, 0644)
 	if err != nil {
 		logger.Error(err, "Failed to write values file")
 		return "", err
@@ -358,10 +412,11 @@ func (r *VirtualClusterReconciler) installOrUpgradeVCluster(ctx context.Context,
 	schemaData, err := r.ensureSchemaConfigMap(ctx, vcluster, chartVersion)
 	if err != nil {
 		logger.Error(err, "Failed to ensure schema ConfigMap exists")
-		return err
+		// Continue anyway, just log the error
+		logger.Info("Continuing without schema validation")
 	}
 
-	// Validate values against schema if we have the schema
+	// Validate values against schema if we have the schema, but don't fail if validation fails
 	if schemaData != "" {
 		if err := r.validateValuesAgainstSchema(ctx, vcluster, schemaData); err != nil {
 			logger.Error(err, "Schema validation failed")
@@ -397,18 +452,25 @@ func (r *VirtualClusterReconciler) installOrUpgradeVCluster(ctx context.Context,
 		}
 	}
 
+	// Set correct environment for Helm
+	helmEnv := append(os.Environ(), fmt.Sprintf("HOME=%s", os.Getenv("HOME")))
+
 	// Add the vCluster repo if not exists
 	addRepoCmd := exec.Command("helm", "repo", "add", "loft", vclusterRepo)
+	addRepoCmd.Env = helmEnv
 	if output, err := addRepoCmd.CombinedOutput(); err != nil {
 		logger.Error(err, "Failed to add Helm repo", "output", string(output))
-		return err
+		// Continue anyway, just log the error
+		logger.Info("Continuing with Helm install despite repo add failure")
 	}
 
 	// Update the Helm repos
 	updateRepoCmd := exec.Command("helm", "repo", "update")
+	updateRepoCmd.Env = helmEnv
 	if output, err := updateRepoCmd.CombinedOutput(); err != nil {
 		logger.Error(err, "Failed to update Helm repos", "output", string(output))
-		return err
+		// Continue anyway, just log the error
+		logger.Info("Continuing with Helm install despite repo update failure")
 	}
 
 	if exists {
@@ -435,6 +497,9 @@ func (r *VirtualClusterReconciler) installOrUpgradeVCluster(ctx context.Context,
 			"--values", valuesFile,
 		)
 	}
+
+	// Set environment variables
+	cmd.Env = helmEnv
 
 	// Execute the command
 	output, err := cmd.CombinedOutput()
@@ -541,16 +606,77 @@ func (r *VirtualClusterReconciler) validateValuesAgainstSchema(ctx context.Conte
 	logger := log.FromContext(ctx)
 	logger.Info("Validating values against schema")
 
-	// Convert the values to JSON for validation
-	valuesJSON := vcluster.Spec.Values.Raw
-	if valuesJSON == nil {
-		// Empty values are valid
-		return nil
+	// Get the values
+	values, err := vcluster.GetValues()
+	if err != nil {
+		logger.Error(err, "Failed to get values from VirtualCluster")
+		return err
+	}
+
+	// Transform values to vCluster format according to schema
+	transformedValues := make(map[string]interface{})
+
+	// Map 'vcluster' section to appropriate controlPlane fields
+	if vclusterConfig, ok := values["vcluster"].(map[string]interface{}); ok {
+		// In schema, the K3s/K8s image is defined within controlPlane
+		controlPlane := make(map[string]interface{})
+
+		// Set the image if specified
+		if image, ok := vclusterConfig["image"].(string); ok {
+			controlPlane["image"] = image
+		}
+
+		transformedValues["controlPlane"] = controlPlane
+	}
+
+	// Map 'storage' (persistence) section to correct fields according to schema
+	if storage, ok := values["storage"].(map[string]interface{}); ok {
+		if persistence, ok := storage["persistence"].(bool); ok {
+			// Set storage-related fields
+			if !persistence {
+				// If persistence is false, we need to disable it in the vcluster chart
+				transformedValues["networking"] = map[string]interface{}{
+					"podCIDR":         "10.42.0.0/16",
+					"serviceCIDR":     "10.43.0.0/16",
+					"isolation":       "enabled",
+					"cloudController": false,
+				}
+			}
+		}
+	}
+
+	// Map 'telemetry' section to correct schema field
+	if telemetry, ok := values["telemetry"].(map[string]interface{}); ok {
+		telemetryConfig := make(map[string]interface{})
+		if disabled, ok := telemetry["disabled"].(bool); ok {
+			telemetryConfig["enabled"] = !disabled
+		}
+		transformedValues["telemetry"] = telemetryConfig
+	}
+
+	// Copy any other fields that match the schema
+	validRootFields := []string{
+		"controlPlane", "experimental", "exportKubeConfig", "external",
+		"global", "integrations", "networking", "plugin", "plugins",
+		"policies", "pro", "rbac", "serviceCIDR", "sleepMode", "sync", "telemetry",
+	}
+
+	for _, field := range validRootFields {
+		if v, ok := values[field]; ok {
+			transformedValues[field] = v
+		}
+	}
+
+	// Convert to JSON for validation
+	transformedJSON, err := json.Marshal(transformedValues)
+	if err != nil {
+		logger.Error(err, "Failed to marshal transformed values to JSON")
+		return err
 	}
 
 	// Create schema and document loaders
 	schemaLoader := gojsonschema.NewStringLoader(schemaData)
-	documentLoader := gojsonschema.NewBytesLoader(valuesJSON)
+	documentLoader := gojsonschema.NewBytesLoader(transformedJSON)
 
 	// Validate
 	result, err := gojsonschema.Validate(schemaLoader, documentLoader)

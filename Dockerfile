@@ -24,8 +24,14 @@ FROM alpine:3.19
 WORKDIR /
 COPY --from=builder /workspace/manager .
 
+# Create home directory for non-root user
+RUN mkdir -p /home/nonroot && \
+    chown -R 65532:65532 /home/nonroot
+
 # Install Helm
 ENV HELM_VERSION="v3.14.4"
+ENV HOME="/home/nonroot"
+
 RUN apk add --no-cache curl tar && \
     curl -fsSL -o helm.tar.gz https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz && \
     tar -xzf helm.tar.gz && \
