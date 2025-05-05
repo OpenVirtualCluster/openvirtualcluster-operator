@@ -25,7 +25,7 @@ jobs:
           cache: true
 
       - name: Setup Kind
-        uses: helm/kind-action@v1.8.0
+        uses: helm/kind-action@v1.12.0
         with:
           wait: 300s
           cluster_name: kind
